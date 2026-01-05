@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.user_configs (
 );
 
 -- Transcription segments (one row per meeting for this specific implementation)
-CREATE TABLE public.transcript_segments (
+CREATE TABLE IF NOT EXISTS public.transcript_segments (
   meeting_id text not null,
   speaker_id text null,
   source_lang text null,
@@ -34,7 +34,17 @@ CREATE TABLE public.transcript_segments (
 
 -- 2. ENABLE REALTIME
 -- This allows the client to listen for changes on transcript_segments
-ALTER PUBLICATION supabase_realtime ADD TABLE transcript_segments;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'transcript_segments'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE transcript_segments;
+  END IF;
+END $$;
 
 -- 3. ENABLE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -46,14 +56,21 @@ ALTER TABLE public.transcript_segments ENABLE ROW LEVEL SECURITY;
 -- Go to: Authentication -> Providers -> Anonymous -> Enable
 
 -- Transcript Segments: Public access for demo purposes
+DROP POLICY IF EXISTS "Public Read Transcript" ON public.transcript_segments;
 CREATE POLICY "Public Read Transcript" ON public.transcript_segments FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public Insert Transcript" ON public.transcript_segments;
 CREATE POLICY "Public Insert Transcript" ON public.transcript_segments FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Update Transcript" ON public.transcript_segments;
 CREATE POLICY "Public Update Transcript" ON public.transcript_segments FOR UPDATE USING (true);
 
 -- Users: Syncing user info
+DROP POLICY IF EXISTS "Public Sync Users" ON public.users;
 CREATE POLICY "Public Sync Users" ON public.users FOR ALL USING (true);
 
 -- User Configs: Syncing user settings
+DROP POLICY IF EXISTS "Public Sync Configs" ON public.user_configs;
 CREATE POLICY "Public Sync Configs" ON public.user_configs FOR ALL USING (true);
 
 -- 5. AUTO-UPDATE UPDATED_AT TRIGGER
@@ -65,6 +82,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_user_configs_updated_at ON public.user_configs;
 CREATE TRIGGER update_user_configs_updated_at BEFORE UPDATE ON public.user_configs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_transcript_segments_updated_at ON public.transcript_segments;
 CREATE TRIGGER update_transcript_segments_updated_at BEFORE update on transcript_segments for EACH row execute FUNCTION update_updated_at_column ();
