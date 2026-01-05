@@ -32,6 +32,14 @@ CREATE TABLE IF NOT EXISTS public.transcript_segments (
   constraint transcript_segments_speaker_id_fkey foreign KEY (speaker_id) references public.users (user_id)
 ) TABLESPACE pg_default;
 
+-- Rooms table for managing speaker state and queue
+CREATE TABLE IF NOT EXISTS public.rooms (
+    meeting_id TEXT PRIMARY KEY,
+    active_speaker JSONB, -- Stores { userId, userName, sessionId, since }
+    raise_hand_queue JSONB DEFAULT '[]'::JSONB, -- Stores array of { userId, userName, requestedAt }
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 2. ENABLE REALTIME
 -- This allows the client to listen for changes on transcript_segments
 DO $$
@@ -44,12 +52,21 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE transcript_segments;
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'rooms'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
+  END IF;
 END $$;
 
 -- 3. ENABLE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transcript_segments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 
 -- 4. POLICIES FOR ANONYMOUS ACCESS
 -- IMPORTANT: You must enable "Allow Anonymous Sign-ins" in the Supabase Dashboard
@@ -73,6 +90,10 @@ CREATE POLICY "Public Sync Users" ON public.users FOR ALL USING (true);
 DROP POLICY IF EXISTS "Public Sync Configs" ON public.user_configs;
 CREATE POLICY "Public Sync Configs" ON public.user_configs FOR ALL USING (true);
 
+-- Rooms: Public access for demo purposes
+DROP POLICY IF EXISTS "Public Sync Rooms" ON public.rooms;
+CREATE POLICY "Public Sync Rooms" ON public.rooms FOR ALL USING (true);
+
 -- 5. AUTO-UPDATE UPDATED_AT TRIGGER
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -90,3 +111,6 @@ CREATE TRIGGER update_user_configs_updated_at BEFORE UPDATE ON public.user_confi
 
 DROP TRIGGER IF EXISTS update_transcript_segments_updated_at ON public.transcript_segments;
 CREATE TRIGGER update_transcript_segments_updated_at BEFORE update on transcript_segments for EACH row execute FUNCTION update_updated_at_column ();
+
+DROP TRIGGER IF EXISTS update_rooms_updated_at ON public.rooms;
+CREATE TRIGGER update_rooms_updated_at BEFORE UPDATE ON public.rooms FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();

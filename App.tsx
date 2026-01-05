@@ -105,6 +105,8 @@ const App: React.FC = () => {
       setRemoteSourceText('');
       setTranslatedStreamText('');
     }, 5000);
+
+    roomStateService.initRoomService(MEETING_ID);
   }, []);
 
   const recognitionRef = useRef<any>(null);
@@ -165,9 +167,13 @@ const App: React.FC = () => {
     const currentTargetLang = selectedLanguageRef.current;
     const targetName = currentTargetLang.code === 'auto' ? 'English' : currentTargetLang.name;
     const ctx = ensureAudioContext();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
 
     try {
       isTtsActiveRef.current = true;
+      console.log(`Starting TTS for segment: ${row.meeting_id}`);
       
       await geminiService.streamTranslation(
         row.source_text,
@@ -175,15 +181,18 @@ const App: React.FC = () => {
         ctx,
         (data) => {
           setAudioData(data);
-          setIsTtsLoading(false);
+          // Only stop loading once we actually get audio data
+          if (data.length > 0) setIsTtsLoading(false);
         },
         (text) => {
           setTranslatedStreamText(pruneText(text));
           resetClearTimer();
         },
         () => {
+          console.log("TTS segment complete");
           isTtsActiveRef.current = false;
           setAudioData(new Uint8Array(0));
+          setIsTtsLoading(false); // Ensure loading is off
           if (segmentQueueRef.current.length > 0) processNextInQueue();
         },
         row.source_lang
@@ -256,7 +265,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSpeakToggle = () => {
+  const handleSpeakToggle = async () => {
     ensureAudioContext();
     if (mode === 'speaking') {
       if (recognitionRef.current) {
@@ -276,7 +285,7 @@ const App: React.FC = () => {
         return;
       }
       
-      const acquired = roomStateService.tryAcquireSpeaker(myUserId, myUserName);
+      const acquired = await roomStateService.tryAcquireSpeaker(myUserId, myUserName);
       if (acquired) {
         setMode('speaking');
         setLastFinalText('');
