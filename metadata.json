@@ -1,0 +1,7 @@
+{
+  "name": "TranslatorPL",
+  "description": "A sophisticated multi-user translator plugin featuring a unique Speak/Listen split control, language center, and a FIFO raise-hand queue for orderly turn-taking.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
