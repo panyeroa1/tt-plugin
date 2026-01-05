@@ -38,6 +38,12 @@ export function subscribeToRoomState(callback: (state: RoomState) => void): () =
       table: 'rooms', 
       filter: `meeting_id=eq.${meetingId}` 
     }, (payload: any) => {
+      if (payload.eventType === 'DELETE') {
+        currentState = { ...INITIAL_STATE, lockVersion: currentState.lockVersion + 1 };
+        callback(currentState);
+        return;
+      }
+
       const newRow = payload.new;
       if (newRow) {
         currentState = {
