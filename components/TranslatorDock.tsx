@@ -18,6 +18,7 @@ interface TranslatorDockProps {
   liveStreamText?: string;
   translatedStreamText?: string;
   isTtsLoading?: boolean;
+  isTtsActive?: boolean;
   emotion?: EmotionType;
   meetingId: string;
   onInvite: () => void;
@@ -86,6 +87,7 @@ const TranslatorDock: React.FC<TranslatorDockProps> = ({
   liveStreamText,
   translatedStreamText,
   isTtsLoading,
+  isTtsActive,
   emotion = 'neutral',
   meetingId,
   onInvite,
@@ -101,7 +103,9 @@ const TranslatorDock: React.FC<TranslatorDockProps> = ({
   const isQueued = myQueuePosition !== -1;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const displayText = isMeListening ? translatedStreamText : liveStreamText;
+  const displayText = isMeListening 
+    ? (translatedStreamText || liveStreamText) 
+    : liveStreamText;
   const isTranslation = isMeListening && !!translatedStreamText;
 
   useEffect(() => {
@@ -247,9 +251,21 @@ const TranslatorDock: React.FC<TranslatorDockProps> = ({
             className="w-full overflow-x-hidden whitespace-nowrap scroll-smooth flex justify-start items-center"
           >
             {displayText && (
-              <span className="text-[14px] text-lime-400 font-bold tracking-wide transition-all duration-300 inline-block px-4">
+              <span className={`text-[14px] font-bold tracking-wide transition-all duration-300 inline-block px-4 ${
+                isTranslation ? 'text-lime-400' : 'text-slate-400 italic'
+              }`}>
                 {displayText}
               </span>
+            )}
+          </div>
+          
+          {/* Indicators */}
+          <div className="absolute right-4 flex items-center gap-3">
+            {isTtsLoading && (
+              <Loader2 className="w-4 h-4 text-lime-400 animate-spin" />
+            )}
+            {audioData && audioData.length > 0 && (
+              <AudioVisualizer data={audioData} colorClass="bg-lime-400" />
             )}
           </div>
 

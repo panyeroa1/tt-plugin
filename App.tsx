@@ -35,6 +35,7 @@ const App: React.FC = () => {
   
   const [lastFinalText, setLastFinalText] = useState<string>('');
   const [livePartialText, setLivePartialText] = useState<string>('');
+  const [remoteSourceText, setRemoteSourceText] = useState<string>('');
   const [translatedStreamText, setTranslatedStreamText] = useState<string>('');
   
   const [emotion, setEmotion] = useState<EmotionType>('neutral');
@@ -101,6 +102,7 @@ const App: React.FC = () => {
     clearTimerRef.current = window.setTimeout(() => {
       setLastFinalText('');
       setLivePartialText('');
+      setRemoteSourceText('');
       setTranslatedStreamText('');
     }, 5000);
   }, []);
@@ -199,6 +201,12 @@ const App: React.FC = () => {
     if (row.last_segment_id === lastProcessedSegmentIdRef.current) return;
     if (segmentQueueRef.current.some((q: any) => q.last_segment_id === row.last_segment_id)) return;
 
+    if (modeRef.current === 'listening') {
+      setRemoteSourceText(pruneText(row.source_text));
+      setTranslatedStreamText(''); 
+      resetClearTimer();
+    }
+
     segmentQueueRef.current.push(row);
     processNextInQueue();
   }, [processNextInQueue, myUserId]);
@@ -236,6 +244,7 @@ const App: React.FC = () => {
     if (mode === 'listening') {
       setMode('idle');
       setTranslatedStreamText('');
+      setRemoteSourceText('');
       setAudioData(new Uint8Array(0));
       segmentQueueRef.current = [];
       lastProcessedSegmentIdRef.current = null;
@@ -395,9 +404,10 @@ const App: React.FC = () => {
         audioData={audioData}
         audioSource={audioSource}
         onAudioSourceToggle={() => setAudioSource(audioSource === 'mic' ? 'system' : 'mic')}
-        liveStreamText={sourceDisplayText}
+        liveStreamText={mode === 'listening' ? remoteSourceText : sourceDisplayText}
         translatedStreamText={translatedStreamText}
         isTtsLoading={isTtsLoading}
+        isTtsActive={isTtsActiveRef.current}
         emotion={emotion}
         meetingId={MEETING_ID}
         onInvite={handleInvite}
